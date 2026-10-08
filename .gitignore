@@ -12,3 +12,7 @@ data
 **/__pycache__
 .idea
 error_log.txt
+
+.venv/
+trackeval.egg-info
+lab_data/
