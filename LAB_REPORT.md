@@ -64,4 +64,4 @@ Năm file kết quả đầy đủ nằm trong `runs/nop_bai/`:
 - `video_4.txt`
 - `video_5.txt`
 
-Video xem trước baseline và các lượt so sánh nằm cạnh file kết quả tương ứng trong `runs/`.
+Video xem trước và file thử nghiệm được giữ cục bộ để đối chiếu; gói nộp chỉ gồm báo cáo và năm file kết quả cuối.
