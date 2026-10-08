@@ -1,126 +1,133 @@
-# Hướng Dẫn Bài Lab: Cấu Hình & Đánh Giá Tracker
+# Bài lab: cấu hình và đánh giá bộ theo dõi người
 
-## 1. Tổng Quan Bài Lab
+## Mục tiêu
 
-* **Thời lượng:** 2 giờ.
-* **Hình thức:** Mỗi nhóm 2 học viên sử dụng 1 máy tính.
-* **Nhiệm vụ:** Chọn cấu hình theo dõi người (object tracking) phù hợp cho 5 cảnh quay. Hệ thống đã tích hợp sẵn **YOLO detector** và **5 trackers**.
-* **Mục tiêu:** Trả lời bằng kết quả quan sát: *Tracker nào giữ ID ổn định hơn trong từng cảnh, và vì sao?*
-* **Sản phẩm nộp:** Cuối buổi, nộp 5 file kết quả (`video_1.txt` đến `video_5.txt`) cùng báo cáo hoàn chỉnh.
+Chạy YOLO26n cùng nhiều bộ theo dõi trên năm chuỗi ảnh, so sánh độ ổn định ID bằng quan sát và chọn cấu hình phù hợp cho từng cảnh.
 
-### Bảng tổng hợp các Video
+Chỉ `video_1` có ground truth. Chỉ tính HOTA, MOTA và IDF1 cho chuỗi này. Với `video_2` đến `video_5`, ghi nhận xét từ video xem trước; không tự gán điểm metric.
 
-| Video | Đặc điểm cần chú ý | Cách đánh giá trong Lab |
-| :--- | :--- | :--- |
-| `video_1` | Quảng trường ban ngày, camera tĩnh, mật độ vừa | **Có nhãn**; xem video và đọc điểm $HOTA$, $MOTA$, $IDF1$ |
-| `video_2` | Phố đêm, camera tĩnh trên cao, rất đông | **Xem bằng mắt** |
-| `video_3` | Camera di chuyển, ảnh nhỏ, ít frame/giây (FPS thấp) | **Xem bằng mắt** |
-| `video_4` | Trong nhà, camera tiến tới, có phản chiếu kính | **Xem bằng mắt** |
-| `video_5` | Góc nhìn trên xe bus, giao lộ đông, rung lắc | **Xem bằng mắt** |
+| Chuỗi | Số frame | Đặc điểm cần quan sát |
+|---|---:|---|
+| `video_1` | 600 | Quảng trường, camera tĩnh, mật độ người vừa; có ground truth |
+| `video_2` | 1050 | Góc camera cao, nhiều người, ánh sáng đèn mạnh |
+| `video_3` | 837 | Camera di chuyển giữa phố, người ở gần máy quay có thể che khuất |
+| `video_4` | 900 | Trung tâm mua sắm trong nhà, nhiều người và bề mặt phản chiếu |
+| `video_5` | 750 | Góc nhìn từ phương tiện trên phố, có chuyển động camera và xe cộ |
 
-> **Lưu ý:** Chỉ `video_1` có nhãn dữ liệu (ground truth). Với các video từ `video_2` đến `video_5`, học viên mô tả bằng quan sát thực tế, **không tự điền** các điểm $HOTA$, $MOTA$, $IDF1$.
+## 1. Cài đặt và kiểm tra dữ liệu
 
-### Gợi Ý Phân Bổ Thời Gian (120 phút)
-* **15 phút:** Cài đặt và kiểm tra dữ liệu.
-* **20 phút:** Ôn lại kiến thức metrics và chạy thử detector.
-* **10 phút:** Chạy baseline.
-* **35 phút:** Thử nghiệm & so sánh cấu hình các tracker.
-* **30 phút:** Chấm điểm `video_1` và viết báo cáo.
-* **10 phút:** Demo và thảo luận.
-
----
-
-## 2. Thiết Lập & Kiểm Tra Môi Trường
-
-Tải gói dữ liệu 5 video theo tập tin `README`, giải nén và thiết lập biến môi trường `LAB_DATA` trỏ đến thư mục chứa trực tiếp từ `video_1` đến `video_5`.
-
-Thực hiện lệnh trong Terminal:
+Từ thư mục gốc của repo:
 
 ```bash
-export LAB_DATA=/đường/dẫn/lab_data
+source .venv/bin/activate
+pip install -r requirements.txt
+pip install -e .
+export LAB_DATA="$PWD/lab_data"
 python scripts/check_data.py --lab-data-root "$LAB_DATA"
 ```
 
-* **Kết quả mong đợi:** Cả 5 thư mục video đều chứa ảnh đuôi `.jpg` trong `img1/`; riêng `video_1` báo có nhãn.
-* **Xử lý lỗi:** Nếu báo thiếu ảnh, hãy kiểm tra lại đường dẫn và gói giải nén.
-* **Khởi chạy Notebook:** Dùng kernel `cv_robotics_lab21` khi mở `on_tap_metrics.ipynb`. Luôn mở notebook từ cửa sổ terminal đã set biến `LAB_DATA`.
+Lệnh kiểm tra cần tìm thấy `img1/` cho cả năm chuỗi và `video_1/gt/gt.txt`. Các ảnh trong repo đã được giải nén sẵn vào `lab_data/`. Nếu dùng bộ dữ liệu khác, đặt `LAB_DATA` tới thư mục chứa trực tiếp các thư mục `video_1` đến `video_5`.
 
----
+## 2. CP1: xem cảnh và nêu giả thuyết
 
-## 3. Kiến Thức Nền — Detector, Tracker và Các Chỉ Số
+Mở một vài ảnh ở đầu, giữa và cuối mỗi thư mục `img1/`. Các ảnh được đánh số theo frame, ví dụ `lab_data/video_3/img1/000280.jpg`. Repo không có notebook hoặc video preview dựng sẵn; có thể xem trực tiếp các ảnh này.
 
-1. **Detector (YOLO):** Tìm các khung chứa người (bounding boxes) ở từng frame. Một hộp phát hiện ban đầu **chưa có ID**.
-2. **Tracker:** Nối các hộp qua thời gian để cùng một đối tượng giữ nguyên một ID.
-3. **Chỉ số $IoU$ (Intersection over Union):** Đo độ chồng lấp của hai hộp.
-   * *Lưu ý trong Lab này:* Tham số `--iou` đại diện cho ngưỡng $IoU$ của thuật toán NMS trong **Detector**, không phải ngưỡng ghép ID của Tracker.
-4. **Tham số `--conf`:** Ngưỡng tin cậy của YOLO.
-   * Đặt quá cao: Dễ bỏ sót người ở khoảng cách xa, bị khuất hoặc tối.
-   * Đặt quá thấp: Dễ sinh ra các hộp giả (false positives).
-5. **Phân loại Tracker:**
-   * **Chỉ dùng thông tin chuyển động:** `bytetrack`, `ocsort`.
-   * **Dùng thêm đặc trưng ngoại hình (Re-ID):** `botsort`, `strongsort`, `deepocsort` (giúp giữ ID tốt hơn khi đối tượng bị che khuất).
-6. **Ý nghĩa các Metric:**
-   * **$MOTA$:** Bị ảnh hưởng nhiều bởi bỏ sót (FN), hộp giả (FP) và số lần đổi ID (IDSW).
-   * **$IDF1$:** Phản ánh khả năng giữ đúng danh tính liên tục qua các frame.
-   * **$HOTA$:** Cân bằng giữa chất lượng phát hiện (detection) và chất lượng liên kết (association).
-7. **Cấu hình cố định của Lab:**
-   * Model YOLO: `yolo26n.pt`
-   * Kích thước ảnh: $640\text{ px}$
-   * Trọng số Re-ID: `osnet_x0_25_msmt17.pt`
-   * *Nhiệm vụ chính:* Học viên chỉ tinh chỉnh các tham số `--tracker`, `--conf`, và `--iou` cho từng video.
+Chạy YOLO trên một ảnh để xem bounding box trước khi tracker gán ID:
 
----
+```bash
+python -c 'import os; from ultralytics import YOLO; image=os.path.join(os.environ["LAB_DATA"], "video_1/img1/000001.jpg"); r=YOLO("yolo26n.pt").predict(image, imgsz=640, classes=[0], verbose=False)[0]; print("boxes:", r.boxes.xyxy.cpu().tolist()); print("IDs:", r.boxes.id)'
+```
 
-## 4. Các Bước Thực Hiện (Checkpoints)
+Kết quả ở bước predict không có ID. ID chỉ xuất hiện khi chạy `track`.
 
-### CP1: Quan Sát Cảnh và Nêu Giả Thuyết
-1. Xem trước các đoạn phim tại `preview/video_1.mp4` … `preview/video_5.mp4` để nhận diện các thách thức (đông đúc, camera di chuyển, thiếu sáng, bị che khuất).
-2. Mở `on_tap_metrics.ipynb`, đọc bảng chỉ số $MOTA$ / $IDF1$ / $HOTA$ và trả lời 3 câu hỏi True/False. Chạy phần YOLO trên 1 ảnh của `video_1` (xác nhận hộp phát hiện đã có nhưng chưa có ID).
-3. Đưa ra dự đoán ngắn cho ít nhất 2 cảnh. 
-   * *Ví dụ:* *"Cảnh đông dễ lẫn người khi họ cắt ngang nhau; tôi muốn so sánh ByteTrack với một tracker có Re-ID."*
-* **Điều kiện hoàn thành CP1:** Kiểm tra xong dữ liệu, notebook chạy thành công và có giả thuyết ban đầu.
+Ghi giả thuyết trước khi thử nghiệm. Ví dụ: cảnh có camera di chuyển có thể hưởng lợi từ BoT-SORT với bù chuyển động camera; cảnh đông người có thể cần Re-ID để giảm đổi ID khi người che khuất nhau.
 
----
-
-### CP2: Chạy Baseline Đầu Tiên Trên `video_1`
-Chạy `ByteTrack` trên tối đa 150 frame đầu tiên để kiểm tra toàn bộ pipeline:
+## 3. CP2: chạy baseline ByteTrack trên `video_1`
 
 ```bash
 python scripts/run_tracking.py \
   --source "$LAB_DATA/video_1/img1" \
   --seq-name video_1 \
   --tracker bytetrack --conf 0.3 --iou 0.5 \
-  --out runs/thu_nhanh --save-video --max-frames 150
+  --out runs/thu_nhanh/bytetrack \
+  --save-video --max-frames 150 --device 0
 ```
 
-* **Kiểm tra:** Mở file `runs/thu_nhanh/video_1_preview.mp4`. Quan sát màu sắc và ID của từng người. Nếu người đang di chuyển mà bị đổi ID hoặc đổi màu, đó là lỗi tráo danh tính (ID switch).
-* **Lưu ý:** 
-  * File `runs/thu_nhanh/video_1.txt` chỉ là bản thử nghiệm, chưa phải file nộp.
-  * Nếu máy có GPU, bổ sung `--device cuda:0` để tăng tốc độ xử lý.
-* **Điều kiện hoàn thành CP2:** Chỉ ra được ít nhất 1 đoạn ID giữ ổn định hoặc 1 lỗi nhận diện quan sát được từ video baseline.
+Lệnh tạo `runs/thu_nhanh/bytetrack/video_1.txt` và video xem trước `runs/thu_nhanh/bytetrack/video_1_preview.mp4`. Nếu VRAM không đủ, đổi thành `--device cpu`.
 
----
+Mở video xem trước, chọn một vài người dễ theo dõi và ghi lại frame có ID ổn định hoặc ID bị đổi. Để tính điểm baseline trên đúng 150 frame đầu:
 
-### CP3: Thí Nghiệm Chính — Chọn Cấu Hình Cho 5 Video
-Với từng video, thực hiện các bước sau:
+```bash
+python scripts/evaluate_lab.py \
+  --lab-data-root "$LAB_DATA" \
+  --tracker-dir runs/thu_nhanh/bytetrack \
+  --seq-length 150
+```
 
-1. **Thử nghiệm Tracker:** Thử ít nhất 1 tracker chuyển động (`bytetrack`/`ocsort`) và 1 tracker Re-ID (`botsort`/`strongsort`/`deepocsort`).
-   * *Chú ý:* Dùng các thư mục `--out` riêng biệt để tránh ghi đè kết quả.
-2. **Tinh chỉnh Tham số:** Sau khi chọn được tracker phù hợp, thử nghiệm điều chỉnh:
-   * `--conf`: `0.15` / `0.3` / `0.5`
-   * `--iou`: `0.4` / `0.5` / `0.7`
-   * *Nguyên tắc:* Mỗi lượt thử **chỉ đổi 1 tham số** để đánh giá chính xác tác động. Ghi lại các cấu hình không hiệu quả và lý do.
-3. **Xuất kết quả nộp bài:** Khi đã chốt cấu hình tối ưu cho từng video, chạy lại **toàn bộ frame** (bỏ tham số `--max-frames 150`) lưu vào thư mục `runs/nop_bai/`.
+## 4. CP3: so sánh tracker và tinh chỉnh
 
-**Ví dụ lệnh chạy hoàn chỉnh cho `video_2`:**
+Script hỗ trợ ByteTrack, BoT-SORT, BoT-SORT có Re-ID, OC-SORT và Deep OC-SORT. Chạy ít nhất một tracker chuyển động và một tracker có Re-ID. Mỗi lần chạy cần một thư mục đầu ra riêng.
+
+Ví dụ chạy ByteTrack và BoT-SORT có Re-ID trên cả năm chuỗi:
+
+```bash
+for i in 1 2 3 4 5; do
+  seq="video_$i"
+  python scripts/run_tracking.py \
+    --source "$LAB_DATA/$seq/img1" --seq-name "$seq" \
+    --tracker bytetrack --conf 0.3 --iou 0.5 \
+    --out "runs/experiments/$seq/bytetrack" --save-video --max-frames 150 --device 0
+  python scripts/run_tracking.py \
+    --source "$LAB_DATA/$seq/img1" --seq-name "$seq" \
+    --tracker botsort-reid --conf 0.3 --iou 0.5 \
+    --out "runs/experiments/$seq/botsort-reid" --save-video --max-frames 150 --device 0
+done
+```
+
+Sau khi so sánh video xem trước, chọn một tracker cho từng cảnh rồi đổi từng tham số một:
+
+| Thử nghiệm | Giá trị |
+|---|---|
+| `--conf` | `0.15`, `0.3`, `0.5` |
+| `--iou` | `0.4`, `0.5`, `0.7` |
+
+`--iou` là ngưỡng NMS của detector. Mỗi lần thử, lưu vào thư mục riêng và ghi số ID đổi, người bị mất, phát hiện giả cùng các frame tiêu biểu.
+
+## 5. Xuất kết quả cuối
+
+Chạy lại mỗi chuỗi với toàn bộ frame, dùng tracker và ngưỡng đã chọn. Không truyền `--max-frames`. Thêm `--save-video` nếu cần video để xem lại.
+
+Ví dụ cho `video_1`:
+
 ```bash
 python scripts/run_tracking.py \
-  --source "$LAB_DATA/video_2/img2" \
-  --seq-name video_2 \
-  --tracker strongsort --conf 0.25 --iou 0.5 \
-  --out runs/nop_bai --save-video
+  --source "$LAB_DATA/video_1/img1" --seq-name video_1 \
+  --tracker bytetrack --conf 0.15 --iou 0.5 \
+  --out runs/nop_bai --device 0
 ```
 
-*(Lặp lại quy trình trên cho từ `video_1` đến `video_5` với tên sequence và tham số tương ứng).*
+Ví dụ trên chọn ByteTrack với `conf=0.15` sau khi so sánh metric trên 150 frame đầu. Lặp lại lệnh cho bốn chuỗi còn lại, thay `--source`, `--seq-name`, tracker và ngưỡng đã chọn; giữ chung `--out runs/nop_bai` để tạo đủ năm file `video_1.txt` đến `video_5.txt`.
 
-* **Điều kiện hoàn thành CP3:** Thư mục `runs/nop_bai/` chứa đủ 5 file text `video_1.txt` đến `video_5.txt` trùng khớp với các cấu hình được trình bày trong báo cáo.
+Chấm điểm chuỗi có ground truth:
+
+```bash
+python scripts/evaluate_lab.py \
+  --lab-data-root "$LAB_DATA" \
+  --tracker-dir runs/nop_bai
+```
+
+Lặp lại cho bốn chuỗi còn lại. Các file `.txt` là kết quả tracker; không dùng chúng làm ground truth.
+
+## 6. Mẫu báo cáo
+
+| Video | Tracker/cấu hình | Quan sát ID và lỗi | Điểm (chỉ video_1) | Lý do chọn |
+|---|---|---|---|---|
+| `video_1` |  |  | HOTA: ; MOTA: ; IDF1: |  |
+| `video_2` |  |  | Không có ground truth |  |
+| `video_3` |  |  | Không có ground truth |  |
+| `video_4` |  |  | Không có ground truth |  |
+| `video_5` |  |  | Không có ground truth |  |
+
+Kết luận ngắn: tracker nào phù hợp nhất cho từng cảnh, cấu hình nào tạo khác biệt rõ nhất, và metric video_1 có khớp với quan sát hay không?
+
+Báo cáo đã hoàn thành cho dữ liệu hiện có: [LAB_REPORT.md](LAB_REPORT.md).

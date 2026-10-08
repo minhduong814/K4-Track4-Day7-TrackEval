@@ -119,7 +119,7 @@ To convert formats, check out the format specifications defined [here](docs).
 By default, we would recommend the MOTChallenge format, although any implemented format should work. Note that for many cases you will want to use the argument ```--DO_PREPROC False``` unless you want to run preprocessing to remove distractor objects.
 
 ## Requirements
- Code tested on Python 3.7.
+ Full requirements support Python 3.12.
  
  - Minimum requirements: numpy, scipy
  - For plotting: matplotlib
@@ -128,9 +128,9 @@ By default, we would recommend the MOTChallenge format, although any implemented
  - For J & F metric: opencv_python, scikit_image
  - For simples test-cases for metrics: pytest
 
-use ```pip3 -r install requirements.txt``` to install all possible requirements.
+use ```pip install -r requirements.txt``` to install all possible requirements.
 
-use ```pip3 -r install minimum_requirments.txt``` to only install the minimum if you don't need the extra functionality as listed above.
+use ```pip install -r minimum_requirements.txt``` to only install the minimum if you don't need the extra functionality as listed above.
 
 ## Timing analysis
 
